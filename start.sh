@@ -40,8 +40,18 @@ echo ""
 
 # Build and start the application
 echo "Building and starting the application..."
-# Use the determined COMPOSE_CMD variable
-$COMPOSE_CMD --build up -d
+
+# FIX: Separate build and start steps for robust execution in all environments
+echo "Building image..."
+$COMPOSE_CMD build
+if [ $? -ne 0 ]; then
+    echo "❌ Image build failed."
+    echo "Check the logs with: $COMPOSE_CMD logs"
+    exit 1
+fi
+
+echo "Starting container in detached mode..."
+$COMPOSE_CMD up -d
 
 if [ $? -eq 0 ]; then
     echo ""
