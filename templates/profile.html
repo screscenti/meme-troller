@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}{{ user.username }}'s Profile - Meme Troller{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-10">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <div class="mb-3">
+                            <i class="fas fa-user-circle fa-5x" style="color: var(--primary-color);"></i>
+                        </div>
+                        <h2>{{ user.username }}</h2>
+                        <p class="text-muted">Member since {{ user.created_at.strftime('%B %Y') }}</p>
+                    </div>
+                    
+                    <div class="col-md-8">
+                        <h4>Stats</h4>
+                        <div class="row mb-3">
+                            <div class="col-6 col-md-3 text-center mb-3">
+                                <h3 class="text-warning">{{ user.points }}</h3>
+                                <small class="text-muted">Points</small>
+                            </div>
+                            <div class="col-6 col-md-3 text-center mb-3">
+                                <h3 class="text-warning">{{ posts|length }}</h3>
+                                <small class="text-muted">Memes</small>
+                            </div>
+                            <div class="col-6 col-md-3 text-center mb-3">
+                                <h3 class="text-warning">{{ user.comments|length }}</h3>
+                                <small class="text-muted">Comments</small>
+                            </div>
+                            <div class="col-6 col-md-3 text-center mb-3">
+                                {% set total_reactions = namespace(count=0) %}
+                                {% for post in posts %}
+                                    {% set total_reactions.count = total_reactions.count + post.reactions|length %}
+                                {% endfor %}
+                                <h3 class="text-warning">{{ total_reactions.count }}</h3>
+                                <small class="text-muted">Reactions</small>
+                            </div>
+                        </div>
+                        
+                        <h4>Badges</h4>
+                        <div class="mb-3">
+                            <span class="badge badge-custom me-2 mb-2" style="font-size: 1rem;">
+                                {{ user.get_badge() }}
+                            </span>
+                            {% for badge in user.get_special_badges() %}
+                                <span class="badge bg-secondary me-2 mb-2" style="font-size: 0.9rem;">
+                                    {{ badge }}
+                                </span>
+                            {% endfor %}
+                        </div>
+                        
+                        {% if user.is_admin %}
+                            <div class="alert alert-warning mt-3">
+                                <i class="fas fa-user-shield"></i> <strong>Admin User</strong>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <h3 class="mb-3">
+            <i class="fas fa-images"></i> Memes by {{ user.username }} ({{ posts|length }})
+        </h3>
+        
+        {% if posts %}
+            <div class="row">
+                {% for post in posts %}
+                <div class="col-12 col-md-6 col-lg-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ post.title }}</h5>
+                            <p class="text-muted small">
+                                {{ post.created_at.strftime('%b %d, %Y') }}
+                            </p>
+                            
+                            <a href="{{ url_for('view_post', post_id=post.id) }}">
+                                {% if post.file_type == 'video' %}
+                                    <video class="post-video" muted>
+                                        <source src="{{ url_for('static', filename='uploads/' + post.filename) }}" type="video/mp4">
+                                    </video>
+                                {% else %}
+                                    <img src="{{ url_for('static', filename='uploads/' + post.filename) }}" 
+                                         class="post-image" 
+                                         alt="{{ post.title }}"
+                                         loading="lazy">
+                                {% endif %}
+                            </a>
+                            
+                            <div class="mt-3">
+                                <span class="me-2">
+                                    <i class="fas fa-fire"></i> {{ post.reactions|length }}
+                                </span>
+                                <span>
+                                    <i class="fas fa-comment"></i> {{ post.comments|length }}
+                                </span>
+                            </div>
+                            
+                            <div class="mt-2">
+                                <a href="{{ url_for('view_post', post_id=post.id) }}" class="btn btn-meme btn-sm">
+                                    View <i class="fas fa-arrow-right"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="card text-center p-5">
+                <p class="text-muted">This user hasn't posted any memes yet.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

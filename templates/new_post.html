@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Post New Meme - Meme Troller{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="text-center mb-4">
+                    <i class="fas fa-plus-circle"></i> Post a Meme
+                </h2>
+                
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    <strong>Remember:</strong> No pornographic or violent/gory content. Everything else is fair game!
+                </div>
+                
+                <form method="POST" enctype="multipart/form-data" id="uploadForm">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Meme Title</label>
+                        <input type="text" class="form-control" id="title" name="title" required 
+                               placeholder="Give your meme a spicy title...">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Upload Meme</label>
+                        <input type="file" class="form-control" id="file" name="file" 
+                               accept="image/*,video/*,.gif" required>
+                        <div class="form-text">
+                            Accepted formats: Images (JPG, PNG), GIFs, Videos (MP4, WEBM, MOV)
+                            <br>Max size: 50MB
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3" id="preview-container" style="display: none;">
+                        <label class="form-label">Preview</label>
+                        <div id="preview"></div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-meme w-100">
+                        <i class="fas fa-upload"></i> Post Meme
+                    </button>
+                </form>
+                
+                <hr class="my-4">
+                
+                <p class="text-center mb-0">
+                    <a href="{{ url_for('index') }}" class="text-warning">
+                        <i class="fas fa-arrow-left"></i> Back to feed
+                    </a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('file').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        const preview = document.getElementById('preview');
+        const previewContainer = document.getElementById('preview-container');
+        
+        if (file) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                previewContainer.style.display = 'block';
+                
+                if (file.type.startsWith('video/')) {
+                    preview.innerHTML = `<video controls style="max-width: 100%; border-radius: 10px;">
+                        <source src="${e.target.result}" type="${file.type}">
+                    </video>`;
+                } else {
+                    preview.innerHTML = `<img src="${e.target.result}" style="max-width: 100%; border-radius: 10px;">`;
+                }
+            };
+            
+            reader.readAsDataURL(file);
+        } else {
+            previewContainer.style.display = 'none';
+        }
+    });
+</script>
+{% endblock %}

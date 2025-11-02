@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Site Settings - Meme Troller{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="mb-4">
+                    <i class="fas fa-cog"></i> Site Settings
+                </h2>
+                
+                <form method="POST">
+                    <div class="mb-4">
+                        <h4>General Settings</h4>
+                        <div class="mb-3">
+                            <label for="site_name" class="form-label">Site Name</label>
+                            <input type="text" class="form-control" id="site_name" name="site_name" 
+                                   value="{{ settings.site_name }}" required>
+                            <div class="form-text">This appears in the navbar and page titles</div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="mb-4">
+                        <h4>Custom Banner</h4>
+                        <p class="text-muted">Display a custom banner at the top of every page</p>
+                        
+                        <div class="mb-3 form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="banner_enabled" 
+                                   name="banner_enabled" {% if settings.banner_enabled %}checked{% endif %}>
+                            <label class="form-check-label" for="banner_enabled">
+                                <strong>Enable Banner</strong>
+                            </label>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="banner_text" class="form-label">Banner Text</label>
+                            <input type="text" class="form-control" id="banner_text" name="banner_text" 
+                                   value="{{ settings.banner_text }}" maxlength="200">
+                            <div class="form-text">
+                                Examples: "Trolling [Community Name] Since 2025", "HOA Meme Headquarters", etc.
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="banner_color" class="form-label">Banner Color</label>
+                            <div class="row">
+                                <div class="col-auto">
+                                    <input type="color" class="form-control form-control-color" 
+                                           id="banner_color" name="banner_color" 
+                                           value="{{ settings.banner_color }}">
+                                </div>
+                                <div class="col">
+                                    <input type="text" class="form-control" 
+                                           value="{{ settings.banner_color }}" 
+                                           readonly>
+                                </div>
+                            </div>
+                            <div class="form-text">Choose a color that matches your vibe</div>
+                        </div>
+                        
+                        {% if settings.banner_enabled %}
+                        <div class="alert alert-info">
+                            <strong>Preview:</strong>
+                            <div class="mt-2 p-3 rounded text-center" style="background-color: {{ settings.banner_color }};">
+                                <h5 class="mb-0" style="color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+                                    <i class="fas fa-bullhorn"></i> {{ settings.banner_text }} <i class="fas fa-fire"></i>
+                                </h5>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-meme">
+                            <i class="fas fa-save"></i> Save Settings
+                        </button>
+                        <a href="{{ url_for('admin_panel') }}" class="btn btn-outline-warning">
+                            <i class="fas fa-arrow-left"></i> Back to Admin Panel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-body">
+                <h4><i class="fas fa-lightbulb"></i> Banner Ideas</h4>
+                <ul class="mb-0">
+                    <li>Trolling [Your Community] Since 2025</li>
+                    <li>[Community Name] Meme Headquarters</li>
+                    <li>Where [Community Name] Comes to Chaos</li>
+                    <li>Official [HOA Name] Troll Central</li>
+                    <li>Making [Community Name] Great Again... with Memes</li>
+                    <li>[Community Name]'s #1 Meme Destination</li>
+                    <li>Professional Meme Warfare Since [Year]</li>
+                    <li>HOA Karen's Worst Nightmare</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Sync color picker with text input
+    document.getElementById('banner_color').addEventListener('input', function(e) {
+        document.querySelectorAll('input[readonly]')[0].value = e.target.value;
+    });
+</script>
+{% endblock %}

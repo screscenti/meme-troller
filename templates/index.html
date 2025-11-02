@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Meme Troller - Home{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="text-center mb-4">
+            <h1 class="display-4">
+                <i class="fas fa-fire"></i> The Meme Feed <i class="fas fa-fire"></i>
+            </h1>
+            <p class="lead">Doom scroll through the spiciest HOA memes</p>
+        </div>
+    </div>
+</div>
+
+{% if posts %}
+    <div class="row">
+        {% for post in posts %}
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="card-title mb-0">{{ post.title }}</h5>
+                        <span class="badge badge-custom">{{ post.author.get_badge() }}</span>
+                    </div>
+                    <p class="text-muted small">
+                        by <a href="{{ url_for('profile', username=post.author.username) }}" class="text-decoration-none text-warning">
+                            <strong>{{ post.author.username }}</strong>
+                        </a>
+                        <br>
+                        <small>{{ post.created_at.strftime('%b %d, %Y at %I:%M %p') }}</small>
+                    </p>
+                    
+                    <a href="{{ url_for('view_post', post_id=post.id) }}">
+                        {% if post.file_type == 'video' %}
+                            <video class="post-video" controls>
+                                <source src="{{ url_for('static', filename='uploads/' + post.filename) }}" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>
+                        {% else %}
+                            <img src="{{ url_for('static', filename='uploads/' + post.filename) }}" 
+                                 class="post-image" 
+                                 alt="{{ post.title }}"
+                                 loading="lazy">
+                        {% endif %}
+                    </a>
+                    
+                    <div class="mt-3">
+                        <span class="me-2">
+                            <i class="fas fa-fire"></i> {{ post.reactions|length }}
+                        </span>
+                        <span>
+                            <i class="fas fa-comment"></i> {{ post.comments|length }}
+                        </span>
+                    </div>
+                    
+                    <div class="mt-2">
+                        <a href="{{ url_for('view_post', post_id=post.id) }}" class="btn btn-meme btn-sm">
+                            View Meme <i class="fas fa-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="row">
+        <div class="col-12 text-center">
+            <div class="card p-5">
+                <h3>No memes yet! 😢</h3>
+                <p>Be the first to post and earn that sweet "First Blood" badge!</p>
+                {% if session.get('user_id') %}
+                    <a href="{{ url_for('new_post') }}" class="btn btn-meme mt-3">
+                        <i class="fas fa-plus-circle"></i> Post First Meme
+                    </a>
+                {% else %}
+                    <a href="{{ url_for('register') }}" class="btn btn-meme mt-3">
+                        <i class="fas fa-user-plus"></i> Register to Post
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+{% endblock %}

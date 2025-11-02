@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Meme Lord Leaderboard - Meme Troller{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-10">
+        <div class="text-center mb-4">
+            <h1 class="display-4">
+                <i class="fas fa-trophy"></i> Meme Lord Leaderboard <i class="fas fa-trophy"></i>
+            </h1>
+            <p class="lead">The top meme warriors of BV</p>
+        </div>
+        
+        <div class="card">
+            <div class="card-body">
+                {% if users %}
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>User</th>
+                                    <th>Badge</th>
+                                    <th>Points</th>
+                                    <th>Posts</th>
+                                    <th>Special Badges</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users %}
+                                <tr {% if loop.index <= 3 %}style="background: rgba(255, 107, 53, 0.1);"{% endif %}>
+                                    <td>
+                                        {% if loop.index == 1 %}
+                                            <span style="font-size: 1.5rem;">🥇</span>
+                                        {% elif loop.index == 2 %}
+                                            <span style="font-size: 1.5rem;">🥈</span>
+                                        {% elif loop.index == 3 %}
+                                            <span style="font-size: 1.5rem;">🥉</span>
+                                        {% else %}
+                                            {{ loop.index }}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('profile', username=user.username) }}" 
+                                           class="text-decoration-none text-warning">
+                                            <strong>{{ user.username }}</strong>
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-custom">{{ user.get_badge() }}</span>
+                                    </td>
+                                    <td><strong>{{ user.points }}</strong> pts</td>
+                                    <td>{{ user.posts|length }}</td>
+                                    <td>
+                                        {% for badge in user.get_special_badges() %}
+                                            <span class="badge bg-secondary me-1" style="font-size: 0.7rem;">
+                                                {{ badge }}
+                                            </span>
+                                        {% endfor %}
+                                        {% if not user.get_special_badges() %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="mt-4">
+                        <h4>How to Earn Points:</h4>
+                        <ul>
+                            <li><strong>Post a meme:</strong> 10 points</li>
+                            <li><strong>Comment:</strong> 3 points</li>
+                            <li><strong>Receive reaction on post:</strong> 2 points each</li>
+                            <li><strong>Receive reaction on comment:</strong> 1 point each</li>
+                        </ul>
+                        
+                        <h4 class="mt-4">Badge Tiers:</h4>
+                        <ul>
+                            <li><span class="badge badge-custom">Lurker</span> - Starting tier</li>
+                            <li><span class="badge badge-custom">Meme Dabbler</span> - 50 points</li>
+                            <li><span class="badge badge-custom">Shitposter</span> - 100 points</li>
+                            <li><span class="badge badge-custom">Meme Wizard</span> - 250 points</li>
+                            <li><span class="badge badge-custom">Dank Master</span> - 500 points</li>
+                            <li><span class="badge badge-custom">Meme Lord</span> - 1000+ points 👑</li>
+                        </ul>
+                        
+                        <h4 class="mt-4">Special Badges:</h4>
+                        <ul>
+                            <li><span class="badge bg-secondary">First Blood</span> - Post the first meme</li>
+                            <li><span class="badge bg-secondary">Certified Troll</span> - 50+ comments</li>
+                            <li><span class="badge bg-secondary">Comment Goblin</span> - 100+ comments</li>
+                            <li><span class="badge bg-secondary">Reaction Whore</span> - Get 100+ reactions</li>
+                            <li><span class="badge bg-secondary">Night Owl</span> - Post 5+ memes between 12am-5am</li>
+                            <li><span class="badge bg-secondary">Early Adopter</span> - One of first 10 members</li>
+                        </ul>
+                    </div>
+                {% else %}
+                    <div class="text-center p-5">
+                        <h3>No users yet!</h3>
+                        <p>Be the first to join and dominate the leaderboard!</p>
+                        <a href="{{ url_for('register') }}" class="btn btn-meme mt-3">
+                            <i class="fas fa-user-plus"></i> Register Now
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

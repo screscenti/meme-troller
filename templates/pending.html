@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Pending Approval - Meme Troller{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card text-center p-5">
+            <div class="card-body">
+                <i class="fas fa-hourglass-half fa-5x mb-4" style="color: var(--primary-color);"></i>
+                <h2 class="mb-4">Account Pending Approval</h2>
+                <p class="lead">
+                    Your account is waiting for admin approval. 
+                    Once approved, you'll be able to post memes and join the chaos!
+                </p>
+                <p class="text-muted">
+                    In the meantime, you can browse existing memes and check out the leaderboard.
+                </p>
+                
+                <div class="mt-4">
+                    <a href="{{ url_for('index') }}" class="btn btn-meme me-2">
+                        <i class="fas fa-home"></i> Browse Memes
+                    </a>
+                    <a href="{{ url_for('leaderboard') }}" class="btn btn-outline-warning">
+                        <i class="fas fa-trophy"></i> Leaderboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
