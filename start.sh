@@ -7,21 +7,24 @@ echo "Meme Troller - Deployment Script"
 echo "================================"
 echo ""
 
-# --- Set the correct Docker Compose command (V2 preferred) ---
+# --- Set the correct Docker Compose command (V1 prioritized for stability) ---
 COMPOSE_CMD=""
-if command -v docker compose &> /dev/null; then
-    # Docker Compose V2 (preferred: docker compose)
-    COMPOSE_CMD="docker compose"
-elif command -v docker-compose &> /dev/null; then
-    # Docker Compose V1 (fallback: docker-compose)
+
+# 1. Check for Docker Compose V1 binary (docker-compose) first for stability
+if command -v docker-compose &> /dev/null; then
     COMPOSE_CMD="docker-compose"
+    
+# 2. Fallback to Docker Compose V2 plugin (docker compose)
+elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
+    COMPOSE_CMD="docker compose"
+    
 else
     echo "❌ Docker Compose (v1 or v2) is not installed. Please install it first."
     echo "Visit: https://docs.docker.com/compose/install/"
     exit 1
 fi
 
-# Check if Docker is installed (standard Docker CLI is a prerequisite for both V1 and V2)
+# Check if Docker is installed
 if ! command -v docker &> /dev/null; then
     echo "❌ Docker is not installed. Please install Docker first."
     echo "Visit: https://docs.docker.com/get-docker/"
