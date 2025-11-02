@@ -41,7 +41,7 @@ echo ""
 # Build and start the application
 echo "Building and starting the application..."
 # Use the determined COMPOSE_CMD variable
-$COMPOSE_CMD up -d --build
+$COMPOSE_CMD --build up -d
 
 if [ $? -eq 0 ]; then
     echo ""
