@@ -7,8 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2025-11-04
+
 ### Added
-- Initial project structure
+- **Automated Backup System** - Comprehensive backup management
+  - Admin-configurable backup settings
+  - Support for multiple storage providers (Local, Google Drive, pCloud)
+  - Flexible scheduling (Daily or specific days of week)
+  - Configurable backup time
+  - Retention policy (keep last 1-10 backups with auto-cleanup)
+  - Manual "Backup Now" button
+  - Backup history tracking with file sizes and status
+  - Test connection feature for cloud providers
+  - Backs up both database and uploaded media
+  - Scheduled backups using APScheduler
+- New dependencies: APScheduler, Google Drive API, requests
+
+### Changed
+- Enhanced admin navigation with Backups link
+- Improved security with automated backup capabilities
+
+### Fixed
+- N/A
+
+## [1.0.0] - 2025-11-02
+
+### Added
+- Initial release
 - User authentication system with admin approval
 - Meme posting (images, GIFs, videos)
 - Comment system with media attachments
@@ -19,25 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Mobile-responsive design
 - Docker containerization
 - Comprehensive documentation
-
-### Changed
-
-### Deprecated
-
-### Removed
-
-### Fixed
-
-### Security
-
-## [1.0.0] - 2025-11-02
-
-### Added
-- Initial release
-- Core features implemented
-- Complete documentation suite
-- Docker deployment ready
-- Raspberry Pi optimized
+- Customizable banner system for community branding
+- Site settings management
 
 ---
 

@@ -1,11 +1,18 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 from functools import wraps
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 import os
 import secrets
+import tarfile
+import tempfile
+import shutil
+import requests
+import json
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = secrets.token_hex(32)
@@ -61,6 +68,46 @@ class SiteSettings(db.Model):
             db.session.add(settings)
             db.session.commit()
         return settings
+
+class BackupSettings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    enabled = db.Column(db.Boolean, default=False)
+    provider = db.Column(db.String(50), default='local')  # local, gdrive, pcloud
+    schedule_type = db.Column(db.String(20), default='daily')  # daily, weekly, custom
+    backup_time = db.Column(db.String(10), default='02:00')  # HH:MM format
+    days_of_week = db.Column(db.String(50), default='monday')  # comma-separated
+    keep_backups = db.Column(db.Integer, default=5)
+    local_path = db.Column(db.String(255), default='/backups')
+    gdrive_folder_id = db.Column(db.String(255))
+    gdrive_credentials = db.Column(db.Text)  # JSON credentials
+    pcloud_username = db.Column(db.String(255))
+    pcloud_password = db.Column(db.String(255))
+    pcloud_folder = db.Column(db.String(255), default='/memetroller-backups')
+    last_backup = db.Column(db.DateTime)
+    
+    @staticmethod
+    def get_settings():
+        settings = BackupSettings.query.first()
+        if not settings:
+            settings = BackupSettings()
+            db.session.add(settings)
+            db.session.commit()
+        return settings
+
+class BackupHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255), nullable=False)
+    file_size = db.Column(db.Integer)  # bytes
+    backup_type = db.Column(db.String(50))  # manual, scheduled
+    provider = db.Column(db.String(50))  # local, gdrive, pcloud
+    status = db.Column(db.String(20), default='success')  # success, failed
+    error_message = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def get_size_mb(self):
+        if self.file_size:
+            return round(self.file_size / (1024 * 1024), 2)
+        return 0
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -213,6 +260,242 @@ def award_points(user, action):
     }
     user.points += points_map.get(action, 0)
     db.session.commit()
+
+# Backup Service
+class BackupService:
+    @staticmethod
+    def create_backup(backup_type='manual'):
+        """Create a backup of database and uploads"""
+        try:
+            settings = BackupSettings.get_settings()
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f'memetroller_backup_{timestamp}.tar.gz'
+            
+            # Create temporary directory for backup
+            temp_dir = tempfile.mkdtemp()
+            backup_path = os.path.join(temp_dir, filename)
+            
+            # Create tar.gz archive
+            with tarfile.open(backup_path, 'w:gz') as tar:
+                # Add database
+                db_path = os.path.join('instance', 'memetroller.db')
+                if os.path.exists(db_path):
+                    tar.add(db_path, arcname='memetroller.db')
+                
+                # Add uploads
+                uploads_path = 'static/uploads'
+                if os.path.exists(uploads_path):
+                    tar.add(uploads_path, arcname='uploads')
+            
+            # Get file size
+            file_size = os.path.getsize(backup_path)
+            
+            # Upload to selected provider
+            success = False
+            error_msg = None
+            
+            if settings.provider == 'local':
+                success, error_msg = BackupService._save_local(backup_path, filename, settings)
+            elif settings.provider == 'gdrive':
+                success, error_msg = BackupService._save_gdrive(backup_path, filename, settings)
+            elif settings.provider == 'pcloud':
+                success, error_msg = BackupService._save_pcloud(backup_path, filename, settings)
+            
+            # Record in history
+            history = BackupHistory(
+                filename=filename,
+                file_size=file_size,
+                backup_type=backup_type,
+                provider=settings.provider,
+                status='success' if success else 'failed',
+                error_message=error_msg
+            )
+            db.session.add(history)
+            
+            # Update last backup time
+            if success:
+                settings.last_backup = datetime.utcnow()
+            
+            db.session.commit()
+            
+            # Cleanup temp directory
+            shutil.rmtree(temp_dir)
+            
+            # Cleanup old backups
+            if success:
+                BackupService._cleanup_old_backups(settings)
+            
+            return success, error_msg
+            
+        except Exception as e:
+            return False, str(e)
+    
+    @staticmethod
+    def _save_local(backup_path, filename, settings):
+        """Save backup to local directory"""
+        try:
+            os.makedirs(settings.local_path, exist_ok=True)
+            dest_path = os.path.join(settings.local_path, filename)
+            shutil.copy2(backup_path, dest_path)
+            return True, None
+        except Exception as e:
+            return False, str(e)
+    
+    @staticmethod
+    def _save_gdrive(backup_path, filename, settings):
+        """Save backup to Google Drive"""
+        try:
+            if not settings.gdrive_credentials:
+                return False, "Google Drive credentials not configured"
+            
+            from google.oauth2.credentials import Credentials
+            from googleapiclient.discovery import build
+            from googleapiclient.http import MediaFileUpload
+            
+            # Parse credentials
+            creds_data = json.loads(settings.gdrive_credentials)
+            creds = Credentials.from_authorized_user_info(creds_data)
+            
+            service = build('drive', 'v3', credentials=creds)
+            
+            file_metadata = {
+                'name': filename,
+                'parents': [settings.gdrive_folder_id] if settings.gdrive_folder_id else []
+            }
+            
+            media = MediaFileUpload(backup_path, resumable=True)
+            file = service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields='id'
+            ).execute()
+            
+            return True, None
+        except Exception as e:
+            return False, str(e)
+    
+    @staticmethod
+    def _save_pcloud(backup_path, filename, settings):
+        """Save backup to pCloud"""
+        try:
+            if not settings.pcloud_username or not settings.pcloud_password:
+                return False, "pCloud credentials not configured"
+            
+            # pCloud API login
+            login_url = 'https://api.pcloud.com/userinfo'
+            login_params = {
+                'username': settings.pcloud_username,
+                'password': settings.pcloud_password,
+                'getauth': 1
+            }
+            
+            response = requests.get(login_url, params=login_params)
+            data = response.json()
+            
+            if data.get('result') != 0:
+                return False, f"pCloud login failed: {data.get('error', 'Unknown error')}"
+            
+            auth_token = data.get('auth')
+            
+            # Create folder if it doesn't exist
+            folder_path = settings.pcloud_folder
+            create_folder_url = 'https://api.pcloud.com/createfolderifnotexists'
+            folder_params = {
+                'auth': auth_token,
+                'path': folder_path
+            }
+            requests.get(create_folder_url, params=folder_params)
+            
+            # Upload file
+            upload_url = 'https://api.pcloud.com/uploadfile'
+            upload_params = {
+                'auth': auth_token,
+                'path': folder_path,
+                'filename': filename
+            }
+            
+            with open(backup_path, 'rb') as f:
+                files = {'file': f}
+                response = requests.post(upload_url, params=upload_params, files=files)
+                data = response.json()
+                
+                if data.get('result') != 0:
+                    return False, f"pCloud upload failed: {data.get('error', 'Unknown error')}"
+            
+            return True, None
+        except Exception as e:
+            return False, str(e)
+    
+    @staticmethod
+    def _cleanup_old_backups(settings):
+        """Remove old backups beyond keep_backups limit"""
+        try:
+            # Get all backup history, ordered by date
+            backups = BackupHistory.query.filter_by(
+                provider=settings.provider,
+                status='success'
+            ).order_by(BackupHistory.created_at.desc()).all()
+            
+            # Keep only the specified number
+            backups_to_delete = backups[settings.keep_backups:]
+            
+            for backup in backups_to_delete:
+                # Delete from storage
+                if settings.provider == 'local':
+                    file_path = os.path.join(settings.local_path, backup.filename)
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                # TODO: Implement deletion for gdrive and pcloud
+                
+                # Delete from history
+                db.session.delete(backup)
+            
+            db.session.commit()
+        except Exception as e:
+            print(f"Cleanup error: {e}")
+
+# Initialize scheduler
+scheduler = BackgroundScheduler()
+scheduler.start()
+
+def schedule_backups():
+    """Setup scheduled backups based on settings"""
+    try:
+        settings = BackupSettings.get_settings()
+        
+        # Remove existing backup jobs
+        for job in scheduler.get_jobs():
+            if job.id == 'backup_job':
+                scheduler.remove_job('backup_job')
+        
+        if not settings.enabled:
+            return
+        
+        # Parse time
+        hour, minute = map(int, settings.backup_time.split(':'))
+        
+        # Setup cron trigger based on schedule type
+        if settings.schedule_type == 'daily':
+            trigger = CronTrigger(hour=hour, minute=minute)
+        elif settings.schedule_type == 'weekly':
+            days = settings.days_of_week.split(',')
+            day_map = {
+                'monday': 0, 'tuesday': 1, 'wednesday': 2,
+                'thursday': 3, 'friday': 4, 'saturday': 5, 'sunday': 6
+            }
+            day_numbers = [day_map[d.strip().lower()] for d in days if d.strip().lower() in day_map]
+            trigger = CronTrigger(day_of_week=','.join(map(str, day_numbers)), hour=hour, minute=minute)
+        else:
+            return
+        
+        scheduler.add_job(
+            func=lambda: BackupService.create_backup('scheduled'),
+            trigger=trigger,
+            id='backup_job',
+            replace_existing=True
+        )
+    except Exception as e:
+        print(f"Error scheduling backups: {e}")
 
 # Routes
 @app.route('/')
@@ -484,8 +767,96 @@ def site_settings():
     
     return render_template('site_settings.html', settings=settings)
 
+@app.route('/admin/backup-settings', methods=['GET', 'POST'])
+@admin_required
+def backup_settings():
+    settings = BackupSettings.get_settings()
+    
+    if request.method == 'POST':
+        settings.enabled = 'enabled' in request.form
+        settings.provider = request.form.get('provider', 'local')
+        settings.schedule_type = request.form.get('schedule_type', 'daily')
+        settings.backup_time = request.form.get('backup_time', '02:00')
+        settings.days_of_week = request.form.get('days_of_week', 'monday')
+        settings.keep_backups = int(request.form.get('keep_backups', 5))
+        settings.local_path = request.form.get('local_path', '/backups')
+        settings.gdrive_folder_id = request.form.get('gdrive_folder_id', '')
+        settings.pcloud_username = request.form.get('pcloud_username', '')
+        settings.pcloud_password = request.form.get('pcloud_password', '')
+        settings.pcloud_folder = request.form.get('pcloud_folder', '/memetroller-backups')
+        
+        db.session.commit()
+        
+        # Reschedule backups
+        schedule_backups()
+        
+        flash('Backup settings updated!', 'success')
+        return redirect(url_for('backup_settings'))
+    
+    # Get backup history
+    history = BackupHistory.query.order_by(BackupHistory.created_at.desc()).limit(10).all()
+    
+    return render_template('backup_settings.html', settings=settings, history=history)
+
+@app.route('/admin/backup-now', methods=['POST'])
+@admin_required
+def backup_now():
+    success, error = BackupService.create_backup('manual')
+    
+    if success:
+        flash('Backup created successfully!', 'success')
+    else:
+        flash(f'Backup failed: {error}', 'danger')
+    
+    return redirect(url_for('backup_settings'))
+
+@app.route('/admin/test-backup-connection', methods=['POST'])
+@admin_required
+def test_backup_connection():
+    settings = BackupSettings.get_settings()
+    provider = request.form.get('provider', settings.provider)
+    
+    try:
+        if provider == 'local':
+            path = request.form.get('local_path', settings.local_path)
+            os.makedirs(path, exist_ok=True)
+            test_file = os.path.join(path, 'test.txt')
+            with open(test_file, 'w') as f:
+                f.write('test')
+            os.remove(test_file)
+            return jsonify({'success': True, 'message': 'Local path is accessible'})
+        
+        elif provider == 'pcloud':
+            username = request.form.get('pcloud_username')
+            password = request.form.get('pcloud_password')
+            
+            if not username or not password:
+                return jsonify({'success': False, 'message': 'Username and password required'})
+            
+            login_url = 'https://api.pcloud.com/userinfo'
+            response = requests.get(login_url, params={
+                'username': username,
+                'password': password,
+                'getauth': 1
+            })
+            data = response.json()
+            
+            if data.get('result') == 0:
+                return jsonify({'success': True, 'message': 'pCloud connection successful!'})
+            else:
+                return jsonify({'success': False, 'message': f"pCloud error: {data.get('error', 'Unknown')}"})
+        
+        elif provider == 'gdrive':
+            return jsonify({'success': False, 'message': 'Google Drive requires OAuth setup - save settings first'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+    
+    return jsonify({'success': False, 'message': 'Unknown provider'})
+
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     with app.app_context():
         db.create_all()
+        schedule_backups()  # Initialize backup scheduler
     app.run(host='0.0.0.0', port=5000, debug=True)

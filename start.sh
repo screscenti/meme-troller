@@ -7,23 +7,6 @@ echo "Meme Troller - Deployment Script"
 echo "================================"
 echo ""
 
-# --- Set the correct Docker Compose command (V1 prioritized for stability) ---
-COMPOSE_CMD=""
-
-# 1. Check for Docker Compose V1 binary (docker-compose) first for stability
-if command -v docker-compose &> /dev/null; then
-    COMPOSE_CMD="docker-compose"
-    
-# 2. Fallback to Docker Compose V2 plugin (docker compose)
-elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
-    COMPOSE_CMD="docker compose"
-    
-else
-    echo "❌ Docker Compose (v1 or v2) is not installed. Please install it first."
-    echo "Visit: https://docs.docker.com/compose/install/"
-    exit 1
-fi
-
 # Check if Docker is installed
 if ! command -v docker &> /dev/null; then
     echo "❌ Docker is not installed. Please install Docker first."
@@ -31,8 +14,14 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
+# Check if Docker Compose is installed
+if ! command -v docker-compose &> /dev/null; then
+    echo "❌ Docker Compose is not installed. Please install Docker Compose first."
+    echo "Visit: https://docs.docker.com/compose/install/"
+    exit 1
+fi
+
 echo "✅ Docker and Docker Compose are installed"
-echo "Running deployment using command: $COMPOSE_CMD"
 echo ""
 
 # Create necessary directories
@@ -43,18 +32,7 @@ echo ""
 
 # Build and start the application
 echo "Building and starting the application..."
-
-# FIX: Separate build and start steps for robust execution in all environments
-echo "Building image..."
-$COMPOSE_CMD build
-if [ $? -ne 0 ]; then
-    echo "❌ Image build failed."
-    echo "Check the logs with: $COMPOSE_CMD logs"
-    exit 1
-fi
-
-echo "Starting container in detached mode..."
-$COMPOSE_CMD up -d
+docker-compose up -d --build
 
 if [ $? -eq 0 ]; then
     echo ""
@@ -67,17 +45,17 @@ if [ $? -eq 0 ]; then
     echo "  🌐 http://$(hostname -I | awk '{print $1}'):5000"
     echo ""
     echo "⚠️  IMPORTANT: Register the first user immediately!"
-    echo "    The first user becomes the admin automatically."
+    echo "   The first user becomes the admin automatically."
     echo ""
     echo "To view logs:"
-    echo "  $COMPOSE_CMD logs -f"
+    echo "  docker-compose logs -f"
     echo ""
     echo "To stop the application:"
-    echo "  $COMPOSE_CMD down"
+    echo "  docker-compose down"
     echo ""
 else
     echo ""
     echo "❌ Failed to start the application"
-    echo "Check the logs with: $COMPOSE_CMD logs"
+    echo "Check the logs with: docker-compose logs"
     exit 1
 fi

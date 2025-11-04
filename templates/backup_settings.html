@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+
+{% block title %}Backup Settings - Meme Troller{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">
+            <i class="fas fa-database"></i> Backup Management
+        </h2>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Backup Settings -->
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-body">
+                <h4>Backup Configuration</h4>
+                
+                <form method="POST" id="backupForm">
+                    <!-- Enable Backups -->
+                    <div class="mb-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="enabled" name="enabled" 
+                                   {% if settings.enabled %}checked{% endif %}>
+                            <label class="form-check-label" for="enabled">
+                                <strong>Enable Automated Backups</strong>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Storage Provider -->
+                    <div class="mb-4">
+                        <label class="form-label"><strong>Storage Provider</strong></label>
+                        <select class="form-select" name="provider" id="provider">
+                            <option value="local" {% if settings.provider == 'local' %}selected{% endif %}>
+                                Local Storage
+                            </option>
+                            <option value="gdrive" {% if settings.provider == 'gdrive' %}selected{% endif %}>
+                                Google Drive
+                            </option>
+                            <option value="pcloud" {% if settings.provider == 'pcloud' %}selected{% endif %}>
+                                pCloud
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Local Storage Settings -->
+                    <div id="localSettings" class="provider-settings mb-4">
+                        <h5>Local Storage Settings</h5>
+                        <div class="mb-3">
+                            <label for="local_path" class="form-label">Backup Directory Path</label>
+                            <input type="text" class="form-control" id="local_path" name="local_path" 
+                                   value="{{ settings.local_path }}" placeholder="/backups">
+                            <div class="form-text">Absolute path where backups will be stored</div>
+                        </div>
+                    </div>
+
+                    <!-- Google Drive Settings -->
+                    <div id="gdriveSettings" class="provider-settings mb-4" style="display:none;">
+                        <h5>Google Drive Settings</h5>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> Google Drive integration requires OAuth setup. 
+                            Follow the <a href="https://developers.google.com/drive/api/quickstart/python" target="_blank">Google Drive API guide</a> to get credentials.
+                        </div>
+                        <div class="mb-3">
+                            <label for="gdrive_folder_id" class="form-label">Folder ID (optional)</label>
+                            <input type="text" class="form-control" id="gdrive_folder_id" name="gdrive_folder_id" 
+                                   value="{{ settings.gdrive_folder_id or '' }}">
+                            <div class="form-text">Leave empty to use root folder</div>
+                        </div>
+                    </div>
+
+                    <!-- pCloud Settings -->
+                    <div id="pcloudSettings" class="provider-settings mb-4" style="display:none;">
+                        <h5>pCloud Settings</h5>
+                        <div class="mb-3">
+                            <label for="pcloud_username" class="form-label">pCloud Username/Email</label>
+                            <input type="text" class="form-control" id="pcloud_username" name="pcloud_username" 
+                                   value="{{ settings.pcloud_username or '' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="pcloud_password" class="form-label">pCloud Password</label>
+                            <input type="password" class="form-control" id="pcloud_password" name="pcloud_password" 
+                                   value="{{ settings.pcloud_password or '' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="pcloud_folder" class="form-label">pCloud Folder Path</label>
+                            <input type="text" class="form-control" id="pcloud_folder" name="pcloud_folder" 
+                                   value="{{ settings.pcloud_folder }}">
+                        </div>
+                        <button type="button" class="btn btn-info btn-sm" onclick="testConnection()">
+                            <i class="fas fa-plug"></i> Test Connection
+                        </button>
+                    </div>
+
+                    <!-- Schedule Settings -->
+                    <div class="mb-4">
+                        <h5>Backup Schedule</h5>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Schedule Type</label>
+                            <select class="form-select" name="schedule_type" id="schedule_type">
+                                <option value="daily" {% if settings.schedule_type == 'daily' %}selected{% endif %}>
+                                    Daily
+                                </option>
+                                <option value="weekly" {% if settings.schedule_type == 'weekly' %}selected{% endif %}>
+                                    Weekly
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="backup_time" class="form-label">Backup Time</label>
+                            <input type="time" class="form-control" id="backup_time" name="backup_time" 
+                                   value="{{ settings.backup_time }}">
+                            <div class="form-text">Time when backup should run (server time)</div>
+                        </div>
+
+                        <div id="weeklySettings" style="display:none;">
+                            <label class="form-label">Days of Week</label>
+                            <div class="row">
+                                {% set selected_days = settings.days_of_week.split(',') %}
+                                {% for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+                                <div class="col-6 col-md-4 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input day-checkbox" type="checkbox" 
+                                               value="{{ day.lower() }}" id="day_{{ day.lower() }}"
+                                               {% if day.lower() in selected_days %}checked{% endif %}>
+                                        <label class="form-check-label" for="day_{{ day.lower() }}">
+                                            {{ day }}
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <input type="hidden" name="days_of_week" id="days_of_week" value="{{ settings.days_of_week }}">
+                        </div>
+                    </div>
+
+                    <!-- Retention Settings -->
+                    <div class="mb-4">
+                        <label for="keep_backups" class="form-label"><strong>Keep Last N Backups</strong></label>
+                        <select class="form-select" name="keep_backups" id="keep_backups">
+                            {% for i in range(1, 11) %}
+                            <option value="{{ i }}" {% if settings.keep_backups == i %}selected{% endif %}>
+                                {{ i }} backup{{ 's' if i > 1 else '' }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Older backups will be automatically deleted</div>
+                    </div>
+
+                    <hr>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-meme">
+                            <i class="fas fa-save"></i> Save Settings
+                        </button>
+                        <a href="{{ url_for('admin_panel') }}" class="btn btn-outline-warning">
+                            <i class="fas fa-arrow-left"></i> Back to Admin Panel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions & History -->
+    <div class="col-lg-4">
+        <!-- Manual Backup -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5><i class="fas fa-play-circle"></i> Manual Backup</h5>
+                <p class="small text-muted">Create a backup right now</p>
+                
+                {% if settings.last_backup %}
+                <p class="small">
+                    <strong>Last backup:</strong><br>
+                    {{ settings.last_backup.strftime('%Y-%m-%d %H:%M') }}
+                </p>
+                {% endif %}
+                
+                <form method="POST" action="{{ url_for('backup_now') }}" 
+                      onsubmit="return confirm('Create backup now? This may take a few moments.');">
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="fas fa-download"></i> Backup Now
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Backup Info -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5><i class="fas fa-info-circle"></i> What's Backed Up</h5>
+                <ul class="small mb-0">
+                    <li>Database (users, posts, comments)</li>
+                    <li>All uploaded memes & media</li>
+                    <li>Site configuration</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Recent Backups -->
+        <div class="card">
+            <div class="card-body">
+                <h5><i class="fas fa-history"></i> Recent Backups</h5>
+                
+                {% if history %}
+                <div class="list-group list-group-flush">
+                    {% for backup in history %}
+                    <div class="list-group-item bg-transparent px-0">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="small">
+                                <strong>{{ backup.filename }}</strong><br>
+                                <span class="text-muted">
+                                    {{ backup.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                </span><br>
+                                <span class="badge bg-{{ 'success' if backup.status == 'success' else 'danger' }}">
+                                    {{ backup.status }}
+                                </span>
+                                <span class="badge bg-info">{{ backup.provider }}</span>
+                                <span class="text-muted">{{ backup.get_size_mb() }} MB</span>
+                            </div>
+                        </div>
+                        {% if backup.error_message %}
+                        <small class="text-danger">{{ backup.error_message }}</small>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted small mb-0">No backups yet</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Show/hide provider settings
+document.getElementById('provider').addEventListener('change', function() {
+    const provider = this.value;
+    document.querySelectorAll('.provider-settings').forEach(el => el.style.display = 'none');
+    
+    if (provider === 'local') {
+        document.getElementById('localSettings').style.display = 'block';
+    } else if (provider === 'gdrive') {
+        document.getElementById('gdriveSettings').style.display = 'block';
+    } else if (provider === 'pcloud') {
+        document.getElementById('pcloudSettings').style.display = 'block';
+    }
+});
+
+// Show/hide weekly settings
+document.getElementById('schedule_type').addEventListener('change', function() {
+    const weeklySettings = document.getElementById('weeklySettings');
+    weeklySettings.style.display = this.value === 'weekly' ? 'block' : 'none';
+});
+
+// Update days_of_week hidden field
+document.querySelectorAll('.day-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+        const selected = Array.from(document.querySelectorAll('.day-checkbox:checked'))
+            .map(cb => cb.value)
+            .join(',');
+        document.getElementById('days_of_week').value = selected || 'monday';
+    });
+});
+
+// Test connection
+function testConnection() {
+    const provider = document.getElementById('provider').value;
+    const formData = new FormData(document.getElementById('backupForm'));
+    formData.append('provider', provider);
+    
+    fetch('{{ url_for("test_backup_connection") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ ' + data.message);
+        } else {
+            alert('❌ ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error);
+    });
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('provider').dispatchEvent(new Event('change'));
+    document.getElementById('schedule_type').dispatchEvent(new Event('change'));
+});
+</script>
+{% endblock %}
